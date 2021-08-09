@@ -8,16 +8,21 @@ class MyPic extends StatelessWidget{
 
   @override
   Widget build(BuildContext context){
-    return Container(
-      decoration: BoxDecoration(
-        image: DecorationImage(
-          image: NetworkImage(this.src),
-          fit: BoxFit.fitWidth,
+    return GestureDetector(
+      onTap: () => {
+        print(this.src)
+      },
+      child:Container(
+        decoration: BoxDecoration(
+          image: DecorationImage(
+            image: NetworkImage(this.src),
+            fit: BoxFit.fitWidth,
+          ),
+          border: Border.all(
+            color: Colors.black26,
+          ),
+          borderRadius: BorderRadius.circular(12),
         ),
-        border: Border.all(
-          color: Colors.black26,
-        ),
-        borderRadius: BorderRadius.circular(12),
       ),
     );
   }
