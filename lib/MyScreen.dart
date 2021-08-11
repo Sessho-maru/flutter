@@ -2,26 +2,53 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'dart:async';
 
+class MyPicView extends StatelessWidget{
+  final String src;
+  final int index;
+  const MyPicView(this.src, this.index);
+
+  @override
+  Widget build(BuildContext context){
+    return Scaffold(
+      body: GestureDetector(
+        onTap: () => {
+          Navigator.pop(context)
+        },
+        child: Center(
+          child: Hero(
+            tag: this.index,
+            child: Image.network(this.src),
+          )
+        )
+      ),
+    );
+  }
+}
+
 class MyPic extends StatelessWidget{
   final String src;
-  const MyPic(this.src);
+  final int index;
+  const MyPic(this.src, this.index);
 
   @override
   Widget build(BuildContext context){
     return GestureDetector(
       onTap: () => {
-        print(this.src)
+        Navigator.push(context, MaterialPageRoute(builder: (context) => MyPicView(this.src, this.index)))
       },
-      child:Container(
-        decoration: BoxDecoration(
-          image: DecorationImage(
-            image: NetworkImage(this.src),
-            fit: BoxFit.fitWidth,
+      child: Hero(
+        tag: this.index,
+        child: Container(
+          decoration: BoxDecoration(
+            image: DecorationImage(
+              image: NetworkImage(this.src),
+              fit: BoxFit.fitWidth,
+            ),
+            border: Border.all(
+              color: Colors.black26,
+            ),
+            borderRadius: BorderRadius.circular(12),
           ),
-          border: Border.all(
-            color: Colors.black26,
-          ),
-          borderRadius: BorderRadius.circular(12),
         ),
       ),
     );
@@ -34,17 +61,19 @@ class MyGrid extends StatelessWidget{
 
   @override
   Widget build(BuildContext context){
-    return GridView.count(
-      primary: false,
-      padding: const EdgeInsets.symmetric(horizontal: 18.0),
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 20,
-      crossAxisCount: 2,
-      children: this.urls.map((each) {
-        return Container(
-          child: MyPic(each),
-        );
-      }).toList(),
+    return SafeArea(
+      child: GridView.count(
+        primary: false,
+        padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 20.0),
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 20,
+        crossAxisCount: 2,
+        children: this.urls.asMap().entries.map((each) {
+          return Container(
+            child: MyPic(each.value, each.key),
+          );
+        }).toList(),
+      ),
     );
   }
 }
