@@ -73,6 +73,18 @@ class _ShoppingListState extends State<ShoppingList> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    print('a State object has been inserted into tree');
+  }
+
+  @override
+  void dispose() {
+    print('a State object is going to be cleaned');
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
