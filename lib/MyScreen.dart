@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:material_dialogs/material_dialogs.dart';
+import 'package:material_dialogs/widgets/buttons/icon_button.dart';
 import 'dart:async';
 import 'dart:math';
 
@@ -82,7 +83,7 @@ class MyGridState extends State<MyGrid> {
 
   void reverse() {
     setState(() {
-      this.displayed = List.from(this.origin.reversed);
+      this.displayed = List.from(this.displayed.reversed);
     });
   }
 
@@ -113,68 +114,67 @@ class MyGridState extends State<MyGrid> {
 
   @override
   Widget build(BuildContext context){
-    return Column(
-      children: <Widget>[
-        Expanded(
-          flex: 30,
-          child: GridView.count(
-              shrinkWrap: true,
-              primary: false,
-              padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 20.0),
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 20,
-              crossAxisCount: 2,
-              children: displayed.asMap().entries.map((each) {
-                return Container(
-                  child: MyPic(each.value, each.key),
-                );
-              }).toList()
+    return Scaffold(
+      body: Column(
+        children: <Widget>[
+          Expanded(
+            flex: 30,
+            child: GridView.count(
+                shrinkWrap: true,
+                primary: false,
+                padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 20.0),
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 20,
+                crossAxisCount: 2,
+                children: displayed.asMap().entries.map((each) {
+                  return Container(
+                    child: MyPic(each.value, each.key),
+                  );
+                }).toList()
+            ),
           ),
-        ),
-        Expanded(
-          flex: 1,
-          child: Row(
-            children: <Widget>[
-              Expanded(
-                  flex: 1,
-                  child: MyButton('Reverse', this.reverse)
-              ),
-              Expanded(
-                  flex: 1,
-                  child: MyButton('Shuffle', this.shuffle)
-              ),
-              Expanded(
-                  flex: 1,
-                  child: MyButton('Reset', this.reset)
-              )
-            ],
-          )
-        )
-      ],
-    );
-  }
-}
-
-typedef SwitchOrderCallback = Function();
-class MyButton extends StatelessWidget {
-  final String title;
-  final SwitchOrderCallback orderSwitch;
-  const MyButton(this.title, this.orderSwitch);
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: (){
-        this.orderSwitch();
-      },
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 5.0),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(5.0),
-          color: Colors.lightGreen[500],
-        ),
-        child: Center(
-          child: Text(this.title),
+        ],
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.miniCenterFloat,
+      floatingActionButton: Container(
+        height: 39.0,
+        width: 39.0,
+        child: FittedBox(
+          child: FloatingActionButton(
+            onPressed: () => Dialogs.bottomMaterialDialog(
+                msg: 'You can Shuffle or Reverse images',
+                title: "Re-Order",
+                color: Colors.orangeAccent,
+                context: context,
+                actions: [
+                  IconsButton(
+                    onPressed: () => {this.shuffle()},
+                    text: "Shuffle",
+                    iconData: Icons.shuffle,
+                    color: Colors.blueAccent,
+                    textStyle: TextStyle(color: Colors.white),
+                    iconColor: Colors.white,
+                  ),
+                  IconsButton(
+                    onPressed: () => {this.reverse()},
+                    text: "Reverse",
+                    iconData: Icons.arrow_back_outlined,
+                    color: Colors.blueAccent,
+                    textStyle: TextStyle(color: Colors.white),
+                    iconColor: Colors.white,
+                  ),
+                  IconsButton(
+                    onPressed: () => {this.reset()},
+                    text: "Reset",
+                    color: Colors.red,
+                    textStyle: TextStyle(color: Colors.white),
+                    iconColor: Colors.white,
+                  ),
+                ]
+            ),
+            child: Icon(Icons.arrow_upward_rounded),
+            backgroundColor: Colors.lightBlue
+          ),
         ),
       ),
     );
@@ -186,6 +186,9 @@ void main() {
   runApp(
     MaterialApp(
       home: Scaffold(
+        appBar: AppBar(
+            title: const Text('MyScreen')
+        ),
         body: Center(
           child: MyGrid(),
         ),
