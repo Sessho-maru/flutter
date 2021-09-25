@@ -187,7 +187,31 @@ void main() {
     MaterialApp(
       home: Scaffold(
         appBar: AppBar(
-            title: const Text('MyScreen')
+          title: TextField(
+            decoration: const InputDecoration(
+              hintText: '  Pinterest',
+              enabledBorder: UnderlineInputBorder(      
+                borderSide: BorderSide(color: Colors.white, width: 2.0),
+              ),  
+              focusedBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: Colors.orange, width: 2.0),
+              ),  
+            ),
+          ),
+          actions: <Widget>[
+            Padding(
+              padding: EdgeInsets.only(right: 20.0),
+              child: GestureDetector(
+                onTap: () => {},
+                child: Icon(Icons.search, size: 26.0)
+              ),
+            )
+          ],
+          actionsIconTheme: IconThemeData(
+            size: 30.0,
+            color: Colors.white,
+            opacity: 10.0
+          ),
         ),
         body: Center(
           child: MyGrid(),
