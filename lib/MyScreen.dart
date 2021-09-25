@@ -93,7 +93,7 @@ class MyGridState extends State<MyGrid> {
     List<String> shuffled = <String>[];
 
     Random randomObj = Random();
-    while(shuffled.length != size) {
+    while(shuffled.length < size) {
       int index = randomObj.nextInt(size);
       if(visited[index] == false) {
         shuffled.add(this.origin[index]);
