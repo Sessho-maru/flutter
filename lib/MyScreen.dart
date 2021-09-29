@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:material_dialogs/material_dialogs.dart';
 import 'package:material_dialogs/widgets/buttons/icon_button.dart';
-import 'dart:async';
+import 'package:web_scraper/web_scraper.dart';
 import 'dart:math';
 
 class MyPicView extends StatelessWidget{
@@ -28,23 +27,25 @@ class MyPicView extends StatelessWidget{
   }
 }
 
+// ignore: must_be_immutable
 class MyPic extends StatelessWidget{
-  final String src;
+  String? thumbnailUrl;
+  String? jpgUrl;
   final int index;
-  const MyPic(this.src, this.index);
+  MyPic(this.thumbnailUrl, this.jpgUrl, this.index);
 
   @override
   Widget build(BuildContext context){
     return GestureDetector(
       onTap: () => {
-        Navigator.push(context, MaterialPageRoute(builder: (context) => MyPicView(this.src, this.index)))
+        Navigator.push(context, MaterialPageRoute(builder: (context) => MyPicView(this.jpgUrl as String, this.index)))
       },
       child: Hero(
         tag: this.index,
         child: Container(
           decoration: BoxDecoration(
             image: DecorationImage(
-              image: NetworkImage(this.src),
+              image: NetworkImage(this.thumbnailUrl as String),
               fit: BoxFit.fitWidth,
             ),
             border: Border.all(
@@ -58,66 +59,61 @@ class MyPic extends StatelessWidget{
   }
 }
 
+// ignore: must_be_immutable
 class MyGrid extends StatefulWidget{
+  List<Map<String, String>> origin = <Map<String, String>>[];
+  List<Map<String, String>> displayed = <Map<String, String>>[];
+
+  MyGrid(List<Map<String, String>> thumbJpgUrlPair) {
+    this.origin = this.displayed = thumbJpgUrlPair;
+  }
+
   @override
   MyGridState createState() => MyGridState();
 }
 
 class MyGridState extends State<MyGrid> {
-  List<String> origin = <String>[];
-  List<String> displayed = <String>[];
-
-  Future<String> fetchFileData() async{
-    return await rootBundle.loadString('txt/urls.txt');
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    fetchFileData().then((raw) {
-      setState(() {
-        this.origin = this.displayed = raw.split("|");
-      });
-    });
-  }
-
-  void reverse() {
-    setState(() {
-      this.displayed = List.from(this.displayed.reversed);
-    });
-  }
-
   void shuffle() {
-    int size = this.origin.length;
+    int size = widget.origin.length;
     List<bool> visited = List<bool>.filled(size, false);
-    List<String> shuffled = <String>[];
+    List<Map<String, String>> shuffled = <Map<String, String>>[];
 
     Random randomObj = Random();
     while(shuffled.length < size) {
       int index = randomObj.nextInt(size);
       if(visited[index] == false) {
-        shuffled.add(this.origin[index]);
+        shuffled.add(widget.origin[index]);
         visited[index] = true;
       }
     }
 
     setState(() {
-      this.displayed = shuffled;
+      widget.displayed = shuffled;
+    });
+  }
+
+  void reverse() {
+    setState(() {
+      widget.displayed = List.from(widget.displayed.reversed);
     });
   }
 
   void reset() {
     setState(() {
-      this.displayed = this.origin;
+      widget.displayed = widget.origin;
     });
   }
 
   @override
   Widget build(BuildContext context){
     return Scaffold(
-      body: Column(
-        children: <Widget>[
-          Expanded(
+      body: GestureDetector(
+        onTap: () {
+          FocusScope.of(context).unfocus();
+        },
+        child: Column(
+          children: <Widget>[
+            Expanded(
             flex: 30,
             child: GridView.count(
                 shrinkWrap: true,
@@ -126,14 +122,15 @@ class MyGridState extends State<MyGrid> {
                 mainAxisSpacing: 10,
                 crossAxisSpacing: 20,
                 crossAxisCount: 2,
-                children: displayed.asMap().entries.map((each) {
+                children: widget.displayed.asMap().entries.map((each) {
                   return Container(
-                    child: MyPic(each.value, each.key),
+                      child: MyPic(each.value['thumbnail'], each.value['jpgSrc'], each.key),
                   );
                 }).toList()
             ),
-          ),
-        ],
+          )
+          ]
+        ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.miniCenterFloat,
       floatingActionButton: Container(
@@ -181,28 +178,74 @@ class MyGridState extends State<MyGrid> {
   }
 }
 
-void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  runApp(
-    MaterialApp(
+// editing ...
+class Scraper extends StatefulWidget {
+  @override
+  _ScraperState createState() => _ScraperState();
+}
+
+class _ScraperState extends State<Scraper> {
+  final webScraper = WebScraper('https://safebooru.org/');
+  final int imgPerPage = 40;
+
+  String keyword = 'azumanga_daiou';
+  List<Map<String, dynamic>> hrefPairs = [];
+  List<Map<String, dynamic>> thumbPairs = [];
+  List<String> hrefs = [];
+  List<String> thumbs = [];
+  List<Map<String, dynamic>> jpgPairs = [];
+  List<Map<String, String>> thumbJpgUrlPair = [];
+
+  void fetchThumbnailJpgPair(String? keyword) async {
+    if (await webScraper.loadWebPage('index.php?page=post&s=list&tags=$keyword')) {
+        hrefPairs = webScraper.getElement('span.thumb > a', ['href']);
+        thumbPairs = webScraper.getElement('span.thumb > a > img', ['src']);
+
+        for (int i = 0; i < imgPerPage; i++) {
+          hrefs.add(hrefPairs[i]['attributes']['href']);
+          thumbs.add(thumbPairs[i]['attributes']['src']);
+        }
+    }
+
+    for (int i = 0; i < imgPerPage; i++) {
+      if (await webScraper.loadWebPage(hrefs[i])) {
+        jpgPairs = webScraper.getElement('div.content > div > img', ['src']);
+        thumbJpgUrlPair.add({
+          'thumbnail' : thumbs[i],
+          'jpgSrc' : jpgPairs[0]['attributes']['src']
+        });
+      }
+    }
+
+    setState((){
+      this.keyword = "";
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
       home: Scaffold(
         appBar: AppBar(
           title: TextField(
+            onChanged: (text){
+              this.keyword = text;
+            },
             decoration: const InputDecoration(
-              hintText: '  Pinterest',
+              hintText: '  Safebooru',
               enabledBorder: UnderlineInputBorder(      
                 borderSide: BorderSide(color: Colors.white, width: 2.0),
               ),  
               focusedBorder: UnderlineInputBorder(
                 borderSide: BorderSide(color: Colors.orange, width: 2.0),
-              ),  
+              ),
             ),
           ),
           actions: <Widget>[
             Padding(
               padding: EdgeInsets.only(right: 20.0),
               child: GestureDetector(
-                onTap: () => {},
+                onTap: () => { this.fetchThumbnailJpgPair(this.keyword) },
                 child: Icon(Icons.search, size: 26.0)
               ),
             )
@@ -214,9 +257,15 @@ void main() {
           ),
         ),
         body: Center(
-          child: MyGrid(),
-        ),
-      ),
-    ),
+          child: MyGrid( this.thumbJpgUrlPair )
+        )
+      )
+    );
+  }
+}
+
+void main() {
+  runApp(
+    Scraper()
   );
 }
