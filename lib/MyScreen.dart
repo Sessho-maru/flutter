@@ -28,32 +28,89 @@ class MyPicView extends StatelessWidget{
 }
 
 // ignore: must_be_immutable
-class MyPic extends StatelessWidget{
+class MyPic extends StatefulWidget{
   String? thumbnailUrl;
-  String? jpgUrl;
+  String? hrefUrl;
+  String? jpgSrc = '';
   final int index;
-  MyPic(this.thumbnailUrl, this.jpgUrl, this.index);
+  bool isLoading = false;
+  MyPic(this.thumbnailUrl, this.hrefUrl, this.index);
+  
+  @override
+  _MyPicState createState() => _MyPicState();
+}
+
+class _MyPicState extends State<MyPic> {
+  final webScraper = WebScraper('https://safebooru.org/');
+
+  Future<String?> fetchJpgSrc() async {
+    if (await webScraper.loadWebPage(widget.hrefUrl as String)) {
+      List<Map<String, dynamic>> jpgMap = webScraper.getElement('div.content > div > img', ['src']);
+      return jpgMap[0]['attributes']['src'];
+    }  
+  }
+
+  void fetchJpgThenNaviPush() {
+    setState((){
+      widget.isLoading = true;
+    });
+
+    this.fetchJpgSrc().then((jpgSrc) => { 
+      widget.jpgSrc = jpgSrc,
+      setState((){
+        widget.isLoading = false;
+      }),
+      Navigator.push(context, MaterialPageRoute(builder: (context) => MyPicView(widget.jpgSrc as String, widget.index)))
+    });
+  }
+
+  final loadingOverlay = const Positioned.fill(
+    child: Align(
+      alignment: Alignment.center,
+      child: CircularProgressIndicator(backgroundColor: Colors.black12),
+    )
+  );
 
   @override
   Widget build(BuildContext context){
     return GestureDetector(
-      onTap: () => {
-        Navigator.push(context, MaterialPageRoute(builder: (context) => MyPicView(this.jpgUrl as String, this.index)))
+      onTap: () {
+        widget.jpgSrc == ''
+        ? this.fetchJpgThenNaviPush()
+        : Navigator.push(context, MaterialPageRoute(builder: (context) => MyPicView(widget.jpgSrc as String, widget.index)));
       },
       child: Hero(
-        tag: this.index,
-        child: Container(
-          decoration: BoxDecoration(
-            image: DecorationImage(
-              image: NetworkImage(this.thumbnailUrl as String),
-              fit: BoxFit.fitWidth,
+        tag: widget.index,
+        child: widget.isLoading && widget.jpgSrc == ''
+          ? Stack(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  image: DecorationImage(
+                    image: NetworkImage(widget.thumbnailUrl as String),
+                    fit: BoxFit.fitWidth,
+                  ),
+                  border: Border.all(
+                    color: Colors.black26,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              loadingOverlay
+            ]
+          )
+          : Container(
+            decoration: BoxDecoration(
+              image: DecorationImage(
+                image: NetworkImage(widget.thumbnailUrl as String),
+                fit: BoxFit.fitWidth,
+              ),
+              border: Border.all(
+                color: Colors.black26,
+              ),
+              borderRadius: BorderRadius.circular(12),
             ),
-            border: Border.all(
-              color: Colors.black26,
-            ),
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
+          )
       ),
     );
   }
@@ -64,8 +121,8 @@ class MyGrid extends StatefulWidget{
   List<Map<String, String>> origin = <Map<String, String>>[];
   List<Map<String, String>> displayed = <Map<String, String>>[];
 
-  MyGrid(List<Map<String, String>> thumbJpgUrlPair) {
-    this.origin = this.displayed = thumbJpgUrlPair;
+  MyGrid(List<Map<String, String>> thumbHrefPair) {
+    this.origin = this.displayed = thumbHrefPair;
   }
 
   @override
@@ -123,8 +180,9 @@ class MyGridState extends State<MyGrid> {
                 crossAxisSpacing: 20,
                 crossAxisCount: 2,
                 children: widget.displayed.asMap().entries.map((each) {
+                  print(each);
                   return Container(
-                      child: MyPic(each.value['thumbnail'], each.value['jpgSrc'], each.key),
+                      child: MyPic(each.value['thumbnail'], each.value['hrefUrl'], each.key),
                   );
                 }).toList()
             ),
@@ -178,7 +236,6 @@ class MyGridState extends State<MyGrid> {
   }
 }
 
-// editing ...
 class Scraper extends StatefulWidget {
   @override
   _ScraperState createState() => _ScraperState();
@@ -186,40 +243,33 @@ class Scraper extends StatefulWidget {
 
 class _ScraperState extends State<Scraper> {
   final webScraper = WebScraper('https://safebooru.org/');
-  final int imgPerPage = 40;
 
   String keyword = 'azumanga_daiou';
-  List<Map<String, dynamic>> hrefPairs = [];
-  List<Map<String, dynamic>> thumbPairs = [];
-  List<String> hrefs = [];
-  List<String> thumbs = [];
-  List<Map<String, dynamic>> jpgPairs = [];
-  List<Map<String, String>> thumbJpgUrlPair = [];
+  bool newKeyword = false;
+  List<Map<String, dynamic>> thumbMap = [];
+  List<Map<String, dynamic>> hrefMap = [];
+  List<Map<String, String>> thumbHrefPair = [];
 
-  void fetchThumbnailJpgPair(String? keyword) async {
-    if (await webScraper.loadWebPage('index.php?page=post&s=list&tags=$keyword')) {
-        hrefPairs = webScraper.getElement('span.thumb > a', ['href']);
-        thumbPairs = webScraper.getElement('span.thumb > a > img', ['src']);
-
-        for (int i = 0; i < imgPerPage; i++) {
-          hrefs.add(hrefPairs[i]['attributes']['href']);
-          thumbs.add(thumbPairs[i]['attributes']['src']);
-        }
+  void fetchThumbnailHrefPair() async {
+    if(this.newKeyword == true) {
+      thumbHrefPair.clear();
+      this.newKeyword = false;
     }
 
-    for (int i = 0; i < imgPerPage; i++) {
-      if (await webScraper.loadWebPage(hrefs[i])) {
-        jpgPairs = webScraper.getElement('div.content > div > img', ['src']);
-        thumbJpgUrlPair.add({
-          'thumbnail' : thumbs[i],
-          'jpgSrc' : jpgPairs[0]['attributes']['src']
+    if (await webScraper.loadWebPage('index.php?page=post&s=list&tags=' + this.keyword)) {
+      thumbMap = webScraper.getElement('span.thumb >  a > img', ['src']);
+      hrefMap = webScraper.getElement('span.thumb > a', ['href']);
+
+      final int size = thumbMap.length;
+      for (int i = 0; i < size; i++) {
+        setState((){
+          thumbHrefPair.add({
+            'thumbnail' : thumbMap[i]['attributes']['src'],
+            'hrefUrl' : hrefMap[i]['attributes']['href'],
+          });
         });
       }
     }
-
-    setState((){
-      this.keyword = "";
-    });
   }
 
   @override
@@ -230,6 +280,7 @@ class _ScraperState extends State<Scraper> {
           title: TextField(
             onChanged: (text){
               this.keyword = text;
+              this.newKeyword = true;
             },
             decoration: const InputDecoration(
               hintText: '  Safebooru',
@@ -245,7 +296,7 @@ class _ScraperState extends State<Scraper> {
             Padding(
               padding: EdgeInsets.only(right: 20.0),
               child: GestureDetector(
-                onTap: () => { this.fetchThumbnailJpgPair(this.keyword) },
+                onTap: () => { this.fetchThumbnailHrefPair() },
                 child: Icon(Icons.search, size: 26.0)
               ),
             )
@@ -257,7 +308,7 @@ class _ScraperState extends State<Scraper> {
           ),
         ),
         body: Center(
-          child: MyGrid( this.thumbJpgUrlPair )
+          child: MyGrid( this.thumbHrefPair )
         )
       )
     );
