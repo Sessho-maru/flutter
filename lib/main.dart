@@ -71,6 +71,21 @@ class _MyPicState extends State<MyPic> {
     )
   );
 
+  Widget imageContainer() {
+    return Container(
+      decoration: BoxDecoration(
+        image: DecorationImage(
+          image: NetworkImage(widget.thumbnailUrl as String),
+          fit: BoxFit.fitWidth,
+        ),
+        border: Border.all(
+          color: Colors.black26,
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context){
     return GestureDetector(
@@ -84,33 +99,11 @@ class _MyPicState extends State<MyPic> {
         child: widget.isLoading && widget.jpgSrc == ''
           ? Stack(
             children: [
-              Container(
-                decoration: BoxDecoration(
-                  image: DecorationImage(
-                    image: NetworkImage(widget.thumbnailUrl as String),
-                    fit: BoxFit.fitWidth,
-                  ),
-                  border: Border.all(
-                    color: Colors.black26,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
+              this.imageContainer(),
               loadingOverlay
             ]
           )
-          : Container(
-            decoration: BoxDecoration(
-              image: DecorationImage(
-                image: NetworkImage(widget.thumbnailUrl as String),
-                fit: BoxFit.fitWidth,
-              ),
-              border: Border.all(
-                color: Colors.black26,
-              ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-          )
+          : this.imageContainer()
       ),
     );
   }
@@ -161,6 +154,15 @@ class MyGridState extends State<MyGrid> {
     });
   }
 
+  Widget bottomAction(String text){
+    return IconsButton(
+      onPressed: () => {this.shuffle()},
+      text: text,
+      color: text == 'Reset' ? Colors.red : Colors.blueAccent,
+      textStyle: TextStyle(color: Colors.white),
+    );
+  }
+
   @override
   Widget build(BuildContext context){
     return Scaffold(
@@ -196,35 +198,16 @@ class MyGridState extends State<MyGrid> {
         width: 39.0,
         child: FittedBox(
           child: FloatingActionButton(
+            heroTag: null,
             onPressed: () => Dialogs.bottomMaterialDialog(
                 msg: 'You can Shuffle or Reverse images',
                 title: "Re-Order",
                 color: Colors.orangeAccent,
                 context: context,
                 actions: [
-                  IconsButton(
-                    onPressed: () => {this.shuffle()},
-                    text: "Shuffle",
-                    iconData: Icons.shuffle,
-                    color: Colors.blueAccent,
-                    textStyle: TextStyle(color: Colors.white),
-                    iconColor: Colors.white,
-                  ),
-                  IconsButton(
-                    onPressed: () => {this.reverse()},
-                    text: "Reverse",
-                    iconData: Icons.arrow_back_outlined,
-                    color: Colors.blueAccent,
-                    textStyle: TextStyle(color: Colors.white),
-                    iconColor: Colors.white,
-                  ),
-                  IconsButton(
-                    onPressed: () => {this.reset()},
-                    text: "Reset",
-                    color: Colors.red,
-                    textStyle: TextStyle(color: Colors.white),
-                    iconColor: Colors.white,
-                  ),
+                  bottomAction('Shuffle'),
+                  bottomAction('Reverse'),
+                  bottomAction('Reset'),
                 ]
             ),
             child: Icon(Icons.arrow_upward_rounded),
@@ -272,6 +255,25 @@ class _ScraperState extends State<Scraper> {
     }
   }
 
+  Widget paginationArrow(String dir) {
+    return Align(
+      alignment: dir == 'left' ? Alignment.bottomLeft : Alignment.bottomRight,
+      child: Padding(
+        padding: dir == 'left' ? EdgeInsets.only(bottom: 25, left: 14.0) : EdgeInsets.only(bottom: 25, right: 14.0),
+        child: SizedBox(
+          height: 34.5,
+          width: 34.5,
+          child: FloatingActionButton(
+            heroTag: null,
+            onPressed: () => print('fdsfds'),
+            child: dir == 'left' ? Icon(Icons.arrow_left_rounded) : Icon(Icons.arrow_right_rounded),
+            backgroundColor: Colors.orangeAccent
+          )
+        ),
+      )
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -307,10 +309,16 @@ class _ScraperState extends State<Scraper> {
             opacity: 10.0
           ),
         ),
-        body: Center(
-          child: MyGrid( this.thumbHrefPair )
+        body: Stack(
+          children: [
+            Center(
+              child: MyGrid( this.thumbHrefPair )
+            ),
+            this.paginationArrow('left'),
+            this.paginationArrow('right')
+          ],
         )
-      )
+      ),
     );
   }
 }
