@@ -111,36 +111,33 @@ class _MyPicState extends State<MyPic> {
 
 // ignore: must_be_immutable
 class MyGrid extends StatefulWidget{
-  List<Map<String, String>> origin = <Map<String, String>>[];
-  List<Map<String, String>> displayed = <Map<String, String>>[];
-
-  MyGrid(List<Map<String, String>> thumbHrefPair) {
-    this.origin = this.displayed = thumbHrefPair;
-  }
+  // List<Map<String, String>?> origin = <Map<String, String>?>[];
+  List<Map<String, String>?> displayed;
+  MyGrid(this.displayed);
 
   @override
   MyGridState createState() => MyGridState();
 }
 
 class MyGridState extends State<MyGrid> {
-  void shuffle() {
-    int size = widget.origin.length;
-    List<bool> visited = List<bool>.filled(size, false);
-    List<Map<String, String>> shuffled = <Map<String, String>>[];
+  // void shuffle() {
+  //   int size = widget.origin.length;
+  //   List<bool> visited = List<bool>.filled(size, false);
+  //   List<Map<String, String>?> shuffled = <Map<String, String>?>[];
 
-    Random randomObj = Random();
-    while(shuffled.length < size) {
-      int index = randomObj.nextInt(size);
-      if(visited[index] == false) {
-        shuffled.add(widget.origin[index]);
-        visited[index] = true;
-      }
-    }
+  //   Random randomObj = Random();
+  //   while(shuffled.length < size) {
+  //     int index = randomObj.nextInt(size);
+  //     if(visited[index] == false) {
+  //       shuffled.add(widget.origin[index]);
+  //       visited[index] = true;
+  //     }
+  //   }
 
-    setState(() {
-      widget.displayed = shuffled;
-    });
-  }
+  //   setState(() {
+  //     widget.displayed = shuffled;
+  //   });
+  // }
 
   void reverse() {
     setState(() {
@@ -148,15 +145,15 @@ class MyGridState extends State<MyGrid> {
     });
   }
 
-  void reset() {
-    setState(() {
-      widget.displayed = widget.origin;
-    });
-  }
+  // void reset() {
+  //   setState(() {
+  //     widget.displayed = widget.origin;
+  //   });
+  // }
 
   Widget bottomAction(String text){
     return IconsButton(
-      onPressed: () => {this.shuffle()},
+      onPressed: () => {this.reverse()},
       text: text,
       color: text == 'Reset' ? Colors.red : Colors.blueAccent,
       textStyle: TextStyle(color: Colors.white),
@@ -182,9 +179,8 @@ class MyGridState extends State<MyGrid> {
                 crossAxisSpacing: 20,
                 crossAxisCount: 2,
                 children: widget.displayed.asMap().entries.map((each) {
-                  print(each);
                   return Container(
-                      child: MyPic(each.value['thumbnail'], each.value['hrefUrl'], each.key),
+                      child: MyPic(each.value!['thumbnail'], each.value!['hrefUrl'], each.key),
                   );
                 }).toList()
             ),
@@ -198,7 +194,6 @@ class MyGridState extends State<MyGrid> {
         width: 39.0,
         child: FittedBox(
           child: FloatingActionButton(
-            heroTag: null,
             onPressed: () => Dialogs.bottomMaterialDialog(
                 msg: 'You can Shuffle or Reverse images',
                 title: "Re-Order",
@@ -229,30 +224,92 @@ class _ScraperState extends State<Scraper> {
 
   String keyword = 'azumanga_daiou';
   bool newKeyword = false;
+
+  int index = 0;
+  int startIndex = 0;
+  int paginationMarker = 0;
+
+  int numFetchedPage = 0;
+  int currentPage = 1;
+
   List<Map<String, dynamic>> thumbMap = [];
   List<Map<String, dynamic>> hrefMap = [];
-  List<Map<String, String>> thumbHrefPair = [];
-
-  void fetchThumbnailHrefPair() async {
+  List<Map<String, String>?> thumbHrefPair = [];
+  List<Map<String, String>?> toBeRendered = [];
+  bool isProcessing = false;
+  
+  Future<void> fetchThumbnailHrefPair() async {
     if(this.newKeyword == true) {
-      thumbHrefPair.clear();
+      this.thumbHrefPair.clear();
+      this.index = 0;
+      this.numFetchedPage = 0;
+      this.currentPage = 1;
       this.newKeyword = false;
     }
 
-    if (await webScraper.loadWebPage('index.php?page=post&s=list&tags=' + this.keyword)) {
+    setState((){
+      this.isProcessing = true;
+    });
+
+    String pagePostfix = "&pid=${this.index}";
+    print('index.php?page=post&s=list&tags=' + this.keyword + pagePostfix);
+    if (await webScraper.loadWebPage('index.php?page=post&s=list&tags=' + this.keyword + pagePostfix)) {
       thumbMap = webScraper.getElement('span.thumb >  a > img', ['src']);
       hrefMap = webScraper.getElement('span.thumb > a', ['href']);
+      int indexEachFetching = 0;
 
-      final int size = thumbMap.length;
-      for (int i = 0; i < size; i++) {
-        setState((){
-          thumbHrefPair.add({
-            'thumbnail' : thumbMap[i]['attributes']['src'],
-            'hrefUrl' : hrefMap[i]['attributes']['href'],
-          });
-        });
+      final int size = thumbMap.length + this.index;
+      this.thumbHrefPair += List<Map<String, String>?>.filled(thumbMap.length, null);
+      for (this.startIndex = this.index; this.index < size; this.index++) {
+        print(this.index);
+        thumbHrefPair[this.index] = {
+          'thumbnail' : thumbMap[indexEachFetching]['attributes']['src'],
+          'hrefUrl' : hrefMap[indexEachFetching]['attributes']['href'],
+        };
+        indexEachFetching++;
       }
+      this.numFetchedPage++;
+      print('----------------');
     }
+  }
+
+  void assignTobeRendered(MapEntry<int, Map<String, String>?> each) {
+    int pageStartIdx = this.paginationMarker * 40;
+    if(each.key >= pageStartIdx) {
+       if(this.toBeRendered.length == 40) return;
+       this.toBeRendered.add(each.value);
+    }
+  }
+
+  void paginate(String dir) {
+    if (this.currentPage > this.numFetchedPage) {
+      this.paginationMarker++;
+      this.toBeRendered.clear();
+      this.fetchThumbnailHrefPair().then((res) => {
+        this.thumbHrefPair.asMap().entries.forEach(assignTobeRendered),
+        setState(() {
+          this.isProcessing = false;
+        })
+      });
+      return;
+    }
+
+    if (this.currentPage < this.numFetchedPage && dir == 'left') {
+      this.paginationMarker--;
+      this.toBeRendered.clear();
+      this.thumbHrefPair.asMap().entries.forEach(assignTobeRendered);
+      setState(() {
+        this.isProcessing = false;
+      });
+      return;
+    }
+
+    dir == 'init' ? this.paginationMarker = this.currentPage - 1 : this.paginationMarker++;
+    this.toBeRendered.clear();
+    this.thumbHrefPair.asMap().entries.forEach(assignTobeRendered);
+    setState(() {
+      this.isProcessing = false;
+    });
   }
 
   Widget paginationArrow(String dir) {
@@ -265,7 +322,7 @@ class _ScraperState extends State<Scraper> {
           width: 34.5,
           child: FloatingActionButton(
             heroTag: null,
-            onPressed: () => print('fdsfds'),
+            onPressed: () => { dir == 'left' ? this.currentPage-- : this.currentPage++, this.paginate(dir == 'left' ? 'left' : 'right') },
             child: dir == 'left' ? Icon(Icons.arrow_left_rounded) : Icon(Icons.arrow_right_rounded),
             backgroundColor: Colors.orangeAccent
           )
@@ -298,7 +355,7 @@ class _ScraperState extends State<Scraper> {
             Padding(
               padding: EdgeInsets.only(right: 20.0),
               child: GestureDetector(
-                onTap: () => { this.fetchThumbnailHrefPair() },
+                onTap: () => { this.fetchThumbnailHrefPair().then((res) => { this.paginate('init') })},
                 child: Icon(Icons.search, size: 26.0)
               ),
             )
@@ -312,7 +369,7 @@ class _ScraperState extends State<Scraper> {
         body: Stack(
           children: [
             Center(
-              child: MyGrid( this.thumbHrefPair )
+              child: MyGrid( this.toBeRendered )
             ),
             this.paginationArrow('left'),
             this.paginationArrow('right')
