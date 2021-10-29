@@ -251,16 +251,16 @@ class _ScraperState extends State<Scraper> {
       this.isProcessing = true;
     });
 
-    String pagePostfix = "&pid=${this.index}";
-    print('index.php?page=post&s=list&tags=' + this.keyword + pagePostfix);
-    if (await webScraper.loadWebPage('index.php?page=post&s=list&tags=' + this.keyword + pagePostfix)) {
+    String urlPostfix = "&pid=${this.index}";
+    print('index.php?page=post&s=list&tags=' + this.keyword + urlPostfix);
+    if (await webScraper.loadWebPage('index.php?page=post&s=list&tags=' + this.keyword + urlPostfix)) {
       thumbMap = webScraper.getElement('span.thumb >  a > img', ['src']);
       hrefMap = webScraper.getElement('span.thumb > a', ['href']);
       int indexEachFetching = 0;
 
-      final int size = thumbMap.length + this.index;
+      final int endIndex = thumbMap.length + this.index;
       this.thumbHrefPair += List<Map<String, String>?>.filled(thumbMap.length, null);
-      for (this.startIndex = this.index; this.index < size; this.index++) {
+      for (this.startIndex = this.index; this.index < endIndex; this.index++) {
         print(this.index);
         thumbHrefPair[this.index] = {
           'thumbnail' : thumbMap[indexEachFetching]['attributes']['src'],
@@ -304,7 +304,7 @@ class _ScraperState extends State<Scraper> {
       return;
     }
 
-    dir == 'init' ? this.paginationMarker = this.currentPage - 1 : this.paginationMarker++;
+    dir == 'init' ? this.paginationMarker = 0 : this.paginationMarker++;
     this.toBeRendered.clear();
     this.thumbHrefPair.asMap().entries.forEach(assignTobeRendered);
     setState(() {
@@ -322,14 +322,30 @@ class _ScraperState extends State<Scraper> {
           width: 34.5,
           child: FloatingActionButton(
             heroTag: null,
-            onPressed: () => { dir == 'left' ? this.currentPage-- : this.currentPage++, this.paginate(dir == 'left' ? 'left' : 'right') },
+            onPressed: () => { 
+              if (this.paginationMarker == 0 && dir == 'left') {
+                null
+              }
+              else {
+                dir == 'left' ? this.currentPage-- : this.currentPage++, this.paginate(dir == 'left' ? 'left' : 'right')
+              }
+            },
             child: dir == 'left' ? Icon(Icons.arrow_left_rounded) : Icon(Icons.arrow_right_rounded),
-            backgroundColor: Colors.orangeAccent
+            backgroundColor: (this.paginationMarker == 0 && dir == 'left') ? Colors.grey : Colors.orangeAccent
           )
         ),
       )
     );
   }
+
+  final loading = const SizedBox(
+    height: 170.0,
+    width: 170.0,
+    child: CircularProgressIndicator(
+      strokeWidth: 11,
+      valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
+    )
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -369,7 +385,9 @@ class _ScraperState extends State<Scraper> {
         body: Stack(
           children: [
             Center(
-              child: MyGrid( this.toBeRendered )
+              child: this.isProcessing
+                ? loading
+                : MyGrid( this.toBeRendered )
             ),
             this.paginationArrow('left'),
             this.paginationArrow('right')
@@ -385,3 +403,9 @@ void main() {
     Scraper()
   );
 }
+
+/*
+  TODO:
+    block pagination on right-most page
+    magnify, swipe event handle on MyPicView widget
+*/
