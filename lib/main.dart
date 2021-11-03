@@ -45,8 +45,8 @@ class _MyPicState extends State<MyPic> {
 
   Future<String?> fetchJpgSrc() async {
     if (await webScraper.loadWebPage(widget.hrefUrl as String)) {
-      List<Map<String, dynamic>> jpgMap = webScraper.getElement('div.content > div > img', ['src']);
-      return jpgMap[0]['attributes']['src'];
+      List<Map<String, dynamic>> jpgSrcMap = webScraper.getElement('div.content > div > img', ['src']);
+      return jpgSrcMap[0]['attributes']['src'];
     }  
   }
 
@@ -139,21 +139,18 @@ class MyGridState extends State<MyGrid> {
   //   });
   // }
 
-  void reverse() {
-    setState(() {
-      widget.displayed = List.from(widget.displayed.reversed);
-    });
-  }
-
-  // void reset() {
+  // void reverse() {
   //   setState(() {
-  //     widget.displayed = widget.origin;
+  //     widget.displayed = List.from(widget.displayed.reversed);
   //   });
   // }
 
+  void reset() {
+  }
+
   Widget bottomAction(String text){
     return IconsButton(
-      onPressed: () => {this.reverse()},
+      onPressed: () => {this.reset()},
       text: text,
       color: text == 'Reset' ? Colors.red : Colors.blueAccent,
       textStyle: TextStyle(color: Colors.white),
@@ -222,28 +219,37 @@ class Scraper extends StatefulWidget {
 class _ScraperState extends State<Scraper> {
   final webScraper = WebScraper('https://safebooru.org/');
 
-  String keyword = 'azumanga_daiou';
+  String keyword = 'show_top_png';
   bool newKeyword = false;
 
   int index = 0;
   int startIndex = 0;
-  int paginationMarker = 0;
+  int endIndex = 0;
+  int lastPageFromIdx = 0;
 
+  int paginationMarker = 0;
   int numFetchedPage = 0;
   int currentPage = 1;
 
   List<Map<String, dynamic>> thumbMap = [];
   List<Map<String, dynamic>> hrefMap = [];
+  List<Map<String, dynamic>> paginationMap = [];
   List<Map<String, String>?> thumbHrefPair = [];
   List<Map<String, String>?> toBeRendered = [];
+  
   bool isProcessing = false;
+  bool isNotFound = false;
+  int resultEndsAt = 0;
   
   Future<void> fetchThumbnailHrefPair() async {
-    if(this.newKeyword == true) {
+    if (this.newKeyword == true) {
       this.thumbHrefPair.clear();
       this.index = 0;
       this.numFetchedPage = 0;
       this.currentPage = 1;
+      this.isNotFound = false;
+      this.resultEndsAt = 0;
+      this.lastPageFromIdx = 0;
       this.newKeyword = false;
     }
 
@@ -254,13 +260,26 @@ class _ScraperState extends State<Scraper> {
     String urlPostfix = "&pid=${this.index}";
     print('index.php?page=post&s=list&tags=' + this.keyword + urlPostfix);
     if (await webScraper.loadWebPage('index.php?page=post&s=list&tags=' + this.keyword + urlPostfix)) {
-      thumbMap = webScraper.getElement('span.thumb >  a > img', ['src']);
+      thumbMap = webScraper.getElement('span.thumb > a > img', ['src']);
+      if (thumbMap.length == 0) {
+        this.isNotFound = true;
+        return;
+      }
       hrefMap = webScraper.getElement('span.thumb > a', ['href']);
+
+      if (this.lastPageFromIdx == 0) {
+        paginationMap = webScraper.getElement('div.pagination > a', ['href']);
+        String tailHref = paginationMap.removeLast()['attributes']['href'];
+        this.lastPageFromIdx = int.parse(tailHref.substring(tailHref.indexOf('&pid=') + 5));
+      }
+
       int indexEachFetching = 0;
 
-      final int endIndex = thumbMap.length + this.index;
+      this.startIndex = this.index;
+      this.endIndex = thumbMap.length + this.index;
       this.thumbHrefPair += List<Map<String, String>?>.filled(thumbMap.length, null);
-      for (this.startIndex = this.index; this.index < endIndex; this.index++) {
+
+      for (; this.index < endIndex; this.index++) {
         print(this.index);
         thumbHrefPair[this.index] = {
           'thumbnail' : thumbMap[indexEachFetching]['attributes']['src'],
@@ -273,20 +292,22 @@ class _ScraperState extends State<Scraper> {
     }
   }
 
-  void assignTobeRendered(MapEntry<int, Map<String, String>?> each) {
-    int pageStartIdx = this.paginationMarker * 40;
-    if(each.key >= pageStartIdx) {
-       if(this.toBeRendered.length == 40) return;
-       this.toBeRendered.add(each.value);
-    }
+  void assignTobeRendered(int fromIdx, int endIdx) {
+      for(int i = fromIdx; i < endIdx; i++) {
+        this.toBeRendered.add(this.thumbHrefPair[i]);
+      }
   }
 
   void paginate(String dir) {
-    if (this.currentPage > this.numFetchedPage) {
+    if (this.currentPage > this.numFetchedPage && dir != 'init') {
       this.paginationMarker++;
       this.toBeRendered.clear();
+
       this.fetchThumbnailHrefPair().then((res) => {
-        this.thumbHrefPair.asMap().entries.forEach(assignTobeRendered),
+        assignTobeRendered(this.startIndex, this.endIndex),
+        if (this.startIndex == this.lastPageFromIdx) {
+          this.resultEndsAt = this.currentPage
+        },
         setState(() {
           this.isProcessing = false;
         })
@@ -295,47 +316,73 @@ class _ScraperState extends State<Scraper> {
     }
 
     if (this.currentPage < this.numFetchedPage && dir == 'left') {
-      this.paginationMarker--;
       this.toBeRendered.clear();
-      this.thumbHrefPair.asMap().entries.forEach(assignTobeRendered);
+      this.paginationMarker--;
+      assignTobeRendered(this.paginationMarker * 40, (this.paginationMarker * 40) + 40);
       setState(() {
         this.isProcessing = false;
       });
       return;
     }
 
-    dir == 'init' ? this.paginationMarker = 0 : this.paginationMarker++;
+    if (this.isNotFound == true) {
+      setState(() {
+        this.isProcessing = false;
+      });
+      return;
+    } 
+
     this.toBeRendered.clear();
-    this.thumbHrefPair.asMap().entries.forEach(assignTobeRendered);
+    if (dir == 'init') {
+      this.paginationMarker = 0;
+      if (this.thumbHrefPair.length < 40) {
+        this.resultEndsAt = this.currentPage;
+      }
+      assignTobeRendered(0, this.thumbHrefPair.length);
+    }
+    else {
+      this.paginationMarker++;
+      int endIdx = (this.currentPage == this.resultEndsAt)
+        ? this.thumbHrefPair.length
+        : (40 * this.paginationMarker) + 40;
+        assignTobeRendered(40 * this.paginationMarker, endIdx);
+    }
     setState(() {
       this.isProcessing = false;
     });
   }
 
-  Widget paginationArrow(String dir) {
-    return Align(
-      alignment: dir == 'left' ? Alignment.bottomLeft : Alignment.bottomRight,
-      child: Padding(
-        padding: dir == 'left' ? EdgeInsets.only(bottom: 25, left: 14.0) : EdgeInsets.only(bottom: 25, right: 14.0),
-        child: SizedBox(
-          height: 34.5,
-          width: 34.5,
-          child: FloatingActionButton(
-            heroTag: null,
-            onPressed: () => { 
-              if (this.paginationMarker == 0 && dir == 'left') {
-                null
-              }
-              else {
-                dir == 'left' ? this.currentPage-- : this.currentPage++, this.paginate(dir == 'left' ? 'left' : 'right')
-              }
-            },
-            child: dir == 'left' ? Icon(Icons.arrow_left_rounded) : Icon(Icons.arrow_right_rounded),
-            backgroundColor: (this.paginationMarker == 0 && dir == 'left') ? Colors.grey : Colors.orangeAccent
-          )
-        ),
-      )
-    );
+  bool isLeftmostFirstpageOrRightMostNoMoreResult(String dir) {
+    return (this.paginationMarker == 0 && dir == 'left') || (this.resultEndsAt == this.currentPage && dir == 'right');
+  }
+
+  Widget paginatorArrow(String dir) {
+    if (this.isProcessing == false && this.keyword != 'show_top_png') {
+      return Align(
+        alignment: dir == 'left' ? Alignment.bottomLeft : Alignment.bottomRight,
+        child: Padding(
+          padding: dir == 'left' ? EdgeInsets.only(bottom: 25, left: 14.0) : EdgeInsets.only(bottom: 25, right: 14.0),
+          child: SizedBox(
+            height: 34.5,
+            width: 34.5,
+            child: FloatingActionButton(
+              heroTag: null,
+              onPressed: () => {
+                if (isLeftmostFirstpageOrRightMostNoMoreResult(dir)) {
+                  null
+                }
+                else {
+                  dir == 'left' ? this.currentPage-- : this.currentPage++, this.paginate(dir == 'left' ? 'left' : 'right')
+                }
+              },
+              child: dir == 'left' ? Icon(Icons.arrow_left_rounded) : Icon(Icons.arrow_right_rounded),
+              backgroundColor: isLeftmostFirstpageOrRightMostNoMoreResult(dir) ? Colors.grey : Colors.orangeAccent
+            )
+          ),
+        )
+      );
+    }
+    return Align();
   }
 
   final loading = const SizedBox(
@@ -344,6 +391,13 @@ class _ScraperState extends State<Scraper> {
     child: CircularProgressIndicator(
       strokeWidth: 11,
       valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
+    )
+  );
+
+  final coverImg = const Padding(
+    padding: EdgeInsets.only(bottom: 170.0), 
+    child: Image(
+      image: AssetImage('data-original_merged.png')
     )
   );
 
@@ -385,12 +439,16 @@ class _ScraperState extends State<Scraper> {
         body: Stack(
           children: [
             Center(
-              child: this.isProcessing
-                ? loading
-                : MyGrid( this.toBeRendered )
+              child: this.keyword == 'show_top_png'
+                ? coverImg
+                : this.isProcessing
+                  ? loading
+                  : this.isNotFound 
+                    ? Text('Sorry, result has not found with given keyword')
+                    : MyGrid( this.toBeRendered )
             ),
-            this.paginationArrow('left'),
-            this.paginationArrow('right')
+            this.paginatorArrow('left'),
+            this.paginatorArrow('right')
           ],
         )
       ),
@@ -406,6 +464,6 @@ void main() {
 
 /*
   TODO:
-    block pagination on right-most page
-    magnify, swipe event handle on MyPicView widget
+    block pagination on right-most page - completed
+    magnify, swipe event handler on MyPicView widget
 */
