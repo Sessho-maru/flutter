@@ -90,6 +90,11 @@ class _MyPicState extends State<MyPic> {
   Widget build(BuildContext context){
     return GestureDetector(
       onTap: () {
+        if (FocusScope.of(context).hasPrimaryFocus == false) {
+          FocusScope.of(context).focusedChild!.unfocus();
+          return;
+        }
+
         widget.jpgSrc == ''
         ? this.fetchJpgThenNaviPush()
         : Navigator.push(context, MaterialPageRoute(builder: (context) => MyPicView(widget.jpgSrc as String, widget.index)));
@@ -111,7 +116,6 @@ class _MyPicState extends State<MyPic> {
 
 // ignore: must_be_immutable
 class MyGrid extends StatefulWidget{
-  // List<Map<String, String>?> origin = <Map<String, String>?>[];
   List<Map<String, String>?> displayed;
   MyGrid(this.displayed);
 
@@ -120,37 +124,38 @@ class MyGrid extends StatefulWidget{
 }
 
 class MyGridState extends State<MyGrid> {
-  // void shuffle() {
-  //   int size = widget.origin.length;
-  //   List<bool> visited = List<bool>.filled(size, false);
-  //   List<Map<String, String>?> shuffled = <Map<String, String>?>[];
+  void shuffle() {
+    int size = widget.displayed.length;
+    List<bool> visited = List<bool>.filled(size, false);
+    List<Map<String, String>?> shuffled = <Map<String, String>?>[];
 
-  //   Random randomObj = Random();
-  //   while(shuffled.length < size) {
-  //     int index = randomObj.nextInt(size);
-  //     if(visited[index] == false) {
-  //       shuffled.add(widget.origin[index]);
-  //       visited[index] = true;
-  //     }
-  //   }
+    Random randomObj = Random();
+    while(shuffled.length < size) {
+      int index = randomObj.nextInt(size);
+      if(visited[index] == false) {
+        shuffled.add(widget.displayed[index]);
+        visited[index] = true;
+      }
+    }
 
-  //   setState(() {
-  //     widget.displayed = shuffled;
-  //   });
-  // }
+    setState(() {
+      widget.displayed = shuffled;
+    });
+  }
 
-  // void reverse() {
-  //   setState(() {
-  //     widget.displayed = List.from(widget.displayed.reversed);
-  //   });
-  // }
-
-  void reset() {
+  void reverse() {
+    setState(() {
+      widget.displayed = List.from(widget.displayed.reversed);
+    });
   }
 
   Widget bottomAction(String text){
     return IconsButton(
-      onPressed: () => {this.reset()},
+      onPressed: () => {
+        text == 'Shuffle'
+          ? this.shuffle()
+          : this.reverse()
+      },
       text: text,
       color: text == 'Reset' ? Colors.red : Colors.blueAccent,
       textStyle: TextStyle(color: Colors.white),
@@ -160,30 +165,25 @@ class MyGridState extends State<MyGrid> {
   @override
   Widget build(BuildContext context){
     return Scaffold(
-      body: GestureDetector(
-        onTap: () {
-          FocusScope.of(context).unfocus();
-        },
-        child: Column(
-          children: <Widget>[
-            Expanded(
-            flex: 30,
-            child: GridView.count(
-                shrinkWrap: true,
-                primary: false,
-                padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 20.0),
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 20,
-                crossAxisCount: 2,
-                children: widget.displayed.asMap().entries.map((each) {
-                  return Container(
-                      child: MyPic(each.value!['thumbnail'], each.value!['hrefUrl'], each.key),
-                  );
-                }).toList()
-            ),
-          )
-          ]
-        ),
+      body: Column(
+        children: <Widget>[
+          Expanded(
+          flex: 30,
+          child: GridView.count(
+              shrinkWrap: true,
+              primary: false,
+              padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 20.0),
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 20,
+              crossAxisCount: 2,
+              children: widget.displayed.asMap().entries.map((each) {
+                return Container(
+                    child: MyPic(each.value!['thumbnail'], each.value!['hrefUrl'], each.key),
+                );
+              }).toList()
+          ),
+        )
+        ]
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.miniCenterFloat,
       floatingActionButton: Container(
@@ -199,7 +199,6 @@ class MyGridState extends State<MyGrid> {
                 actions: [
                   bottomAction('Shuffle'),
                   bottomAction('Reverse'),
-                  bottomAction('Reset'),
                 ]
             ),
             child: Icon(Icons.arrow_upward_rounded),
@@ -258,8 +257,8 @@ class _ScraperState extends State<Scraper> {
     });
 
     String urlPostfix = "&pid=${this.index}";
-    print('index.php?page=post&s=list&tags=' + this.keyword + urlPostfix);
-    if (await webScraper.loadWebPage('index.php?page=post&s=list&tags=' + this.keyword + urlPostfix)) {
+    print('index.php?page=post&s=list&tags=' + this.keyword.replaceAll(' ', '_').toLowerCase() + urlPostfix);
+    if (await webScraper.loadWebPage('index.php?page=post&s=list&tags=' + this.keyword.replaceAll(' ', '_') + urlPostfix)) {
       thumbMap = webScraper.getElement('span.thumb > a > img', ['src']);
       if (thumbMap.length == 0) {
         this.isNotFound = true;
@@ -279,7 +278,7 @@ class _ScraperState extends State<Scraper> {
       this.endIndex = thumbMap.length + this.index;
       this.thumbHrefPair += List<Map<String, String>?>.filled(thumbMap.length, null);
 
-      for (; this.index < endIndex; this.index++) {
+      for (; this.index < this.endIndex; this.index++) {
         print(this.index);
         thumbHrefPair[this.index] = {
           'thumbnail' : thumbMap[indexEachFetching]['attributes']['src'],
