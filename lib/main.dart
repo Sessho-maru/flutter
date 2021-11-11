@@ -279,7 +279,7 @@ class _ScraperState extends State<Scraper> {
 
     String urlPostfix = "&pid=${this.index}";
     print('index.php?page=post&s=list&tags=' + this.keyword.replaceAll(' ', '_').toLowerCase() + urlPostfix);
-    if (await webScraper.loadWebPage('index.php?page=post&s=list&tags=' + this.keyword.replaceAll(' ', '_') + urlPostfix)) {
+    if (await webScraper.loadWebPage('index.php?page=post&s=list&tags=' + this.keyword.replaceAll(' ', '_').toLowerCase() + urlPostfix)) {
       thumbMap = webScraper.getElement('span.thumb > a > img', ['src']);
       if (thumbMap.length == 0) {
         this.isNotFound = true;
