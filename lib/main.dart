@@ -320,23 +320,22 @@ class _ScraperState extends State<Scraper> {
 
   void paginate(eDir dir) {
     if (dir == eDir.RIGHT) {
-      if (this.currentPage > this.numFetchedPage) {
-        this.paginationMarker++;
-          this.toBeRendered.clear();
+      this.paginationMarker++;
+      this.toBeRendered.clear();
 
-          this.fetchThumbnailHrefPair().then((res) => {
-            assignTobeRendered(this.idxStartCurPageFrom, this.idxEndCurPageTo),
-            if (this.idxStartCurPageFrom == this.idxlastPageFrom) {
-              this.resultEndsAt = this.currentPage
-            },
-            setState(() {
-              this.isProcessing = false;
-            })
-          });
-          return;
+      if (this.currentPage > this.numFetchedPage) {
+        this.fetchThumbnailHrefPair().then((res) => {
+          assignTobeRendered(this.idxStartCurPageFrom, this.idxEndCurPageTo),
+          if (this.idxStartCurPageFrom == this.idxlastPageFrom) {
+            this.resultEndsAt = this.currentPage
+          },
+          setState(() {
+            this.isProcessing = false;
+          })
+        });
+        return;
       }
 
-      this.paginationMarker++;
       int endIdx = (isLastPage)
         ? this.thumbHrefPair.length
         : initialIdxCurPage + NUM_IMG_PER_PAGE;
@@ -344,11 +343,13 @@ class _ScraperState extends State<Scraper> {
       setState(() {
         this.isProcessing = false;
       });
+      return;
     }
 
     if (dir == eDir.LEFT) {
-      this.toBeRendered.clear();
       this.paginationMarker--;
+      this.toBeRendered.clear();
+
       assignTobeRendered(initialIdxCurPage, initialIdxCurPage + NUM_IMG_PER_PAGE);
       setState(() {
         this.isProcessing = false;
@@ -363,8 +364,9 @@ class _ScraperState extends State<Scraper> {
       return;
     } 
 
-    this.toBeRendered.clear();
     this.paginationMarker = 0;
+    this.toBeRendered.clear();
+    
     if (this.thumbHrefPair.length < NUM_IMG_PER_PAGE) {
       this.resultEndsAt = this.currentPage;
     }
