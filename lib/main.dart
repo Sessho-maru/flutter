@@ -4,6 +4,11 @@ import 'package:material_dialogs/widgets/buttons/icon_button.dart';
 import 'package:web_scraper/web_scraper.dart';
 import 'dart:math';
 
+const int NUM_IMG_PER_PAGE = 40;
+enum eDir {
+  LEFT, RIGHT, INIT
+}
+
 class MyPicView extends StatelessWidget{
   final String src;
   final int index;
@@ -157,7 +162,7 @@ class MyGridState extends State<MyGrid> {
           : this.reverse()
       },
       text: text,
-      color: text == 'Reset' ? Colors.red : Colors.blueAccent,
+      color: Colors.blueAccent,
       textStyle: TextStyle(color: Colors.white),
     );
   }
@@ -218,27 +223,43 @@ class Scraper extends StatefulWidget {
 class _ScraperState extends State<Scraper> {
   final webScraper = WebScraper('https://safebooru.org/');
 
-  String keyword = 'show_top_png';
+  String keyword = 'NOT_SET';
   bool newKeyword = false;
 
   int index = 0;
-  int startIndex = 0;
-  int endIndex = 0;
-  int lastPageFromIdx = 0;
+  int idxStartCurPageFrom = 0;
+  int idxEndCurPageTo = 0;
+  int idxlastPageFrom = 0;
 
   int paginationMarker = 0;
   int numFetchedPage = 0;
   int currentPage = 1;
+  
+  bool isProcessing = false;
+  bool isNotFound = false;
+  int resultEndsAt = 0;
+
+  bool get isKeywordSet {
+    return this.keyword != 'NOT_SET';
+  }
+
+  bool get isFirstPage {
+    return this.paginationMarker == 0;
+  }
+
+  bool get isLastPage {
+    return this.currentPage == this.resultEndsAt;
+  }
+
+  int get initialIdxCurPage {
+    return NUM_IMG_PER_PAGE * this.paginationMarker;
+  }
 
   List<Map<String, dynamic>> thumbMap = [];
   List<Map<String, dynamic>> hrefMap = [];
   List<Map<String, dynamic>> paginationMap = [];
   List<Map<String, String>?> thumbHrefPair = [];
   List<Map<String, String>?> toBeRendered = [];
-  
-  bool isProcessing = false;
-  bool isNotFound = false;
-  int resultEndsAt = 0;
   
   Future<void> fetchThumbnailHrefPair() async {
     if (this.newKeyword == true) {
@@ -248,7 +269,7 @@ class _ScraperState extends State<Scraper> {
       this.currentPage = 1;
       this.isNotFound = false;
       this.resultEndsAt = 0;
-      this.lastPageFromIdx = 0;
+      this.idxlastPageFrom = 0;
       this.newKeyword = false;
     }
 
@@ -266,19 +287,19 @@ class _ScraperState extends State<Scraper> {
       }
       hrefMap = webScraper.getElement('span.thumb > a', ['href']);
 
-      if (this.lastPageFromIdx == 0) {
+      if (this.idxlastPageFrom == 0) {
         paginationMap = webScraper.getElement('div.pagination > a', ['href']);
         String tailHref = paginationMap.removeLast()['attributes']['href'];
-        this.lastPageFromIdx = int.parse(tailHref.substring(tailHref.indexOf('&pid=') + 5));
+        this.idxlastPageFrom = int.parse(tailHref.substring(tailHref.indexOf('&pid=') + 5));
       }
 
       int indexEachFetching = 0;
 
-      this.startIndex = this.index;
-      this.endIndex = thumbMap.length + this.index;
+      this.idxStartCurPageFrom = this.index;
+      this.idxEndCurPageTo = thumbMap.length + this.index;
       this.thumbHrefPair += List<Map<String, String>?>.filled(thumbMap.length, null);
 
-      for (; this.index < this.endIndex; this.index++) {
+      for (; this.index < this.idxEndCurPageTo; this.index++) {
         print(this.index);
         thumbHrefPair[this.index] = {
           'thumbnail' : thumbMap[indexEachFetching]['attributes']['src'],
@@ -297,27 +318,38 @@ class _ScraperState extends State<Scraper> {
       }
   }
 
-  void paginate(String dir) {
-    if (this.currentPage > this.numFetchedPage && dir != 'init') {
-      this.paginationMarker++;
-      this.toBeRendered.clear();
+  void paginate(eDir dir) {
+    if (dir == eDir.RIGHT) {
+      if (this.currentPage > this.numFetchedPage) {
+        this.paginationMarker++;
+          this.toBeRendered.clear();
 
-      this.fetchThumbnailHrefPair().then((res) => {
-        assignTobeRendered(this.startIndex, this.endIndex),
-        if (this.startIndex == this.lastPageFromIdx) {
-          this.resultEndsAt = this.currentPage
-        },
-        setState(() {
-          this.isProcessing = false;
-        })
+          this.fetchThumbnailHrefPair().then((res) => {
+            assignTobeRendered(this.idxStartCurPageFrom, this.idxEndCurPageTo),
+            if (this.idxStartCurPageFrom == this.idxlastPageFrom) {
+              this.resultEndsAt = this.currentPage
+            },
+            setState(() {
+              this.isProcessing = false;
+            })
+          });
+          return;
+      }
+
+      this.paginationMarker++;
+      int endIdx = (isLastPage)
+        ? this.thumbHrefPair.length
+        : initialIdxCurPage + NUM_IMG_PER_PAGE;
+      assignTobeRendered(initialIdxCurPage, endIdx);
+      setState(() {
+        this.isProcessing = false;
       });
-      return;
     }
 
-    if (this.currentPage < this.numFetchedPage && dir == 'left') {
+    if (dir == eDir.LEFT) {
       this.toBeRendered.clear();
       this.paginationMarker--;
-      assignTobeRendered(this.paginationMarker * 40, (this.paginationMarker * 40) + 40);
+      assignTobeRendered(initialIdxCurPage, initialIdxCurPage + NUM_IMG_PER_PAGE);
       setState(() {
         this.isProcessing = false;
       });
@@ -332,50 +364,41 @@ class _ScraperState extends State<Scraper> {
     } 
 
     this.toBeRendered.clear();
-    if (dir == 'init') {
-      this.paginationMarker = 0;
-      if (this.thumbHrefPair.length < 40) {
-        this.resultEndsAt = this.currentPage;
-      }
-      assignTobeRendered(0, this.thumbHrefPair.length);
+    this.paginationMarker = 0;
+    if (this.thumbHrefPair.length < NUM_IMG_PER_PAGE) {
+      this.resultEndsAt = this.currentPage;
     }
-    else {
-      this.paginationMarker++;
-      int endIdx = (this.currentPage == this.resultEndsAt)
-        ? this.thumbHrefPair.length
-        : (40 * this.paginationMarker) + 40;
-        assignTobeRendered(40 * this.paginationMarker, endIdx);
-    }
+    assignTobeRendered(0, this.thumbHrefPair.length);
     setState(() {
       this.isProcessing = false;
     });
   }
 
-  bool isLeftmostFirstpageOrRightMostNoMoreResult(String dir) {
-    return (this.paginationMarker == 0 && dir == 'left') || (this.resultEndsAt == this.currentPage && dir == 'right');
+  bool isEdgeOfPagination(eDir dir) {
+    return (isFirstPage && dir == eDir.LEFT) || (isLastPage && dir == eDir.RIGHT);
   }
 
-  Widget paginatorArrow(String dir) {
-    if (this.isProcessing == false && this.keyword != 'show_top_png') {
+  Widget paginatorArrow(eDir dir) {
+    if (this.isNotFound == false && this.isProcessing == false && isKeywordSet == true) {
       return Align(
-        alignment: dir == 'left' ? Alignment.bottomLeft : Alignment.bottomRight,
+        alignment: dir == eDir.LEFT ? Alignment.bottomLeft : Alignment.bottomRight,
         child: Padding(
-          padding: dir == 'left' ? EdgeInsets.only(bottom: 25, left: 14.0) : EdgeInsets.only(bottom: 25, right: 14.0),
+          padding: dir == eDir.LEFT ? EdgeInsets.only(bottom: 25, left: 14.0) : EdgeInsets.only(bottom: 25, right: 14.0),
           child: SizedBox(
             height: 34.5,
             width: 34.5,
             child: FloatingActionButton(
               heroTag: null,
               onPressed: () => {
-                if (isLeftmostFirstpageOrRightMostNoMoreResult(dir)) {
+                if (isEdgeOfPagination(dir) == true) {
                   null
                 }
                 else {
-                  dir == 'left' ? this.currentPage-- : this.currentPage++, this.paginate(dir == 'left' ? 'left' : 'right')
+                  dir == eDir.LEFT ? this.currentPage-- : this.currentPage++, this.paginate(dir == eDir.LEFT ? eDir.LEFT : eDir.RIGHT)
                 }
               },
-              child: dir == 'left' ? Icon(Icons.arrow_left_rounded) : Icon(Icons.arrow_right_rounded),
-              backgroundColor: isLeftmostFirstpageOrRightMostNoMoreResult(dir) ? Colors.grey : Colors.orangeAccent
+              child: dir == eDir.LEFT ? Icon(Icons.arrow_left_rounded) : Icon(Icons.arrow_right_rounded),
+              backgroundColor: isEdgeOfPagination(dir) == true ? Colors.grey : Colors.orangeAccent
             )
           ),
         )
@@ -384,7 +407,7 @@ class _ScraperState extends State<Scraper> {
     return Align();
   }
 
-  final loading = const SizedBox(
+  final loadingScreen = const SizedBox(
     height: 170.0,
     width: 170.0,
     child: CircularProgressIndicator(
@@ -393,7 +416,7 @@ class _ScraperState extends State<Scraper> {
     )
   );
 
-  final coverImg = const Padding(
+  final cover = const Padding(
     padding: EdgeInsets.only(bottom: 170.0), 
     child: Image(
       image: AssetImage('data-original_merged.png')
@@ -424,7 +447,7 @@ class _ScraperState extends State<Scraper> {
             Padding(
               padding: EdgeInsets.only(right: 20.0),
               child: GestureDetector(
-                onTap: () => { this.fetchThumbnailHrefPair().then((res) => { this.paginate('init') })},
+                onTap: () => { this.fetchThumbnailHrefPair().then((res) => { this.paginate(eDir.INIT) })},
                 child: Icon(Icons.search, size: 26.0)
               ),
             )
@@ -438,16 +461,16 @@ class _ScraperState extends State<Scraper> {
         body: Stack(
           children: [
             Center(
-              child: this.keyword == 'show_top_png'
-                ? coverImg
+              child: (isKeywordSet == false)
+                ? cover
                 : this.isProcessing
-                  ? loading
+                  ? loadingScreen
                   : this.isNotFound 
                     ? Text('Sorry, result has not found with given keyword')
                     : MyGrid( this.toBeRendered )
             ),
-            this.paginatorArrow('left'),
-            this.paginatorArrow('right')
+            this.paginatorArrow(eDir.LEFT),
+            this.paginatorArrow(eDir.RIGHT)
           ],
         )
       ),
