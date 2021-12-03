@@ -10,3 +10,6 @@ Site safebooru searches images by tagging.</br>
 This app scrapes safebooru with one tag given as keyword.</br>
 [Here](https://safebooru.org/index.php?page=tags&s=list) is a list of all available tags on safebooru.</br></br>
 Search your fav anime character and series!
+
+</br></br>
+[**APK download Available (google drive)**](https://drive.google.com/file/d/1JTC0O6jMtPsFhVUgmiQVItVyI8n7XXeR/view?usp=sharing)
