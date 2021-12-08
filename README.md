@@ -12,4 +12,4 @@ This app scrapes safebooru with one tag given as keyword.</br>
 Search your fav anime character and series!
 
 </br></br>
-[**APK download Available (google drive)**](https://drive.google.com/file/d/1JTC0O6jMtPsFhVUgmiQVItVyI8n7XXeR/view?usp=sharing)
+[**APK download Available (google drive)**]https://drive.google.com/file/d/1IveikRM5DPP_lougTBvZ6Nj4v3WXQRfD/view?usp=sharing)
